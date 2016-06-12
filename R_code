@@ -1,0 +1,106 @@
+bank = read.csv('C:/Course/Asignment/Spring/Data mining/lab/bankruptcy.csv', header = TRUE)
+#Part 1
+sample.index = sample(nrow(bank), size = 0.8*nrow(bank))
+
+bank_train = bank[sample.index,-c(1,3)]
+bank_test = bank[-sample.index,-c(1,3)]
+View(bank_train)
+plot(bank_train)
+
+library(ggplot2)
+
+p=list()
+
+#for(i in 1:ncol(bank_train))
+#p[[i]] <- qplot(bank_train[,i], xlab=names(bank_train)[[i]] )
+
+#do.call(grid.arrange,p)
+
+#install.packages(gridExtra)
+
+mod1.glm = glm(DLRSN~. , data = bank_train, family = binomial(link= "cloglog"))
+summary(mod1.glm)
+
+#part2
+
+library(leaps)
+nullmodel = glm(DLRSN~1, data = bank_train, family = binomial)
+fullmodel= glm(DLRSN~., data = bank_train, family = binomial)
+#AIC
+model.aic = step(nullmodel, scope = list(lower = nullmodel, upper= fullmodel), direction = 'forward')
+summary(model.aic)
+#BIC
+model.bic = step(nullmodel, scope = list(lower = nullmodel, upper= fullmodel), k=log(nrow(bank_train)),direction = 'forward')
+summary(model.bic)
+
+library(verification)
+
+prob.train = predict(model.aic, type = 'response')
+
+View(prob.train)
+roc.plot(bank_train$DLRSN == "1", prob.train)
+roc.plot(bank_train$DLRSN == "1", prob.train)$roc.vol
+#Misclassification rate insample
+library(ROCR)
+pred = prediction(prob.train, bank_train$DLRSN)
+pred=as.numeric(pred)
+table(pred,bank_train$DLRSN)
+model.aic
+data("iris")
+View(iris)
+prob.test = predict(model.aic, bank_test, type = 'response')
+roc.plot(bank_test$DLRSN==1,prob.test )
+roc.plot(bank_test$DLRSN==1,prob.test )$roc.vol
+
+#K fold cross validation
+
+pcut=1/16
+
+cost1 = function(r,pi){
+  weight1 = 1
+  weight0 = 1
+  c1= (r==1)&(pi<=pcut)
+  
+  c0= (r==0)&(pi>pcut)
+  
+  return(mean(weight1*c1+weight0*c0))
+}
+
+library(boot)
+View(bank)
+bank1=bank[,-3]
+mod.full = glm(DLRSN~.-FYEAR-R4-R5, data = bank1, family = 'binomial')
+mod.full
+
+cv.result = cv.glm(bank1, mod.full, cost1, 5)
+cv.result
+summary(cv.result)
+cv.result$delta
+cv.result$call
+cv.result$K
+
+
+
+#cart
+library(rpart)
+bank.rpart=rpart(DLRSN~., data= bank_train)
+
+bank.rpart = rpart(DLRSN~., data= bank_train, method = 'class',
+                     parms = list(loss=matrix(c(0,10,1,0), nrow = 2)))
+
+
+bank.rpart
+summary(bank.rpart)
+
+plot(bank.rpart)
+text(bank.rpart)
+
+bank.test.pred.tree = predict(bank.rpart, bank_test, type = 'class') #vector with 0&1
+
+a=table(bank_test$DLRSN, bank.test.pred.tree,dnn = c('truth','predicted'))
+a
+1-sum(diag(a))/sum(a)
+270/nrow(bank_test)
+nrow(bank)
+
+
